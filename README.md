@@ -5,6 +5,8 @@ Uses the [HC-SR04](http://www.elecfreaks.com/store/download/product/Sensor/HC-SR
 
 The level is published to an MQTT broker configured in the menuconfig.
 
+To get accurate measurements of the echo signal from the HC-SR04, the ESP32's [RMT](https://esp-idf.readthedocs.io/en/latest/api-reference/peripherals/rmt.html) peripheral is used.
+
 ## Building
 
 1. Run `make menuconfig` to configure Wifi and MQTT.
