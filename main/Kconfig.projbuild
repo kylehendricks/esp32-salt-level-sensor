@@ -39,11 +39,6 @@ config MQTT_PASSWORD
     help
         MQTT password
 
-config MQTT_LWT_TOPIC
-    string "MQTT LWT Topic"
-    help
-        MQTT LWT (Last Will and Testament) Topic
-
 config MQTT_SALT_LEVEL_TOPIC
     string "MQTT Salt Level Topic"
     help

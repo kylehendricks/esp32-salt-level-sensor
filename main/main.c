@@ -11,7 +11,7 @@
 #include "esp_log.h"
 #include "esp_event_loop.h"
 
-#include "mqtt.h"
+#include "esp_mqtt.h"
 
 static const char *TAG = "salt_level_sensor";
 
@@ -26,7 +26,6 @@ static const char *TAG = "salt_level_sensor";
 #define RMT_CLK_DIV 80 // 1μs precision
 
 TimerHandle_t timer_handle = NULL;
-mqtt_client* mqtt_client_handle = NULL;
 RingbufHandle_t rx_ring_buffer_handle = NULL;
 
 rmt_item32_t items[] = {
@@ -34,33 +33,15 @@ rmt_item32_t items[] = {
     {{{ 10, 1, 0, 0 }}}
 };
 
-void connected_cb(mqtt_client *client, mqtt_event_data_t *event_data);
-void disconnected_cb(mqtt_client *client, mqtt_event_data_t *event_data);
-
-mqtt_settings mqttsettings = {
-    .host = CONFIG_MQTT_HOST,
-    .username = CONFIG_MQTT_USERNAME,
-    .password = CONFIG_MQTT_PASSWORD,
-    .port = CONFIG_MQTT_PORT,
-    .client_id = "esp32_sls",
-    .lwt_topic = CONFIG_MQTT_LWT_TOPIC,
-    .lwt_msg = "offline",
-    .lwt_qos = 1,
-    .lwt_retain = 1,
-    .clean_session = 1,
-    .keepalive = 60,
-	.connected_cb = connected_cb,
-	.disconnected_cb = disconnected_cb,
-};
-
+static void mqtt_status_callback(esp_mqtt_status_t status);
 esp_err_t event_handler(void *ctx, system_event_t *event)
 {
     switch(event->event_id) {
         case SYSTEM_EVENT_STA_GOT_IP:
-            mqtt_start(&mqttsettings);
+			esp_mqtt_start(CONFIG_MQTT_HOST, CONFIG_MQTT_PORT, "esp32_sls", CONFIG_MQTT_USERNAME, CONFIG_MQTT_PASSWORD);
             break;
         case SYSTEM_EVENT_STA_DISCONNECTED:
-            mqtt_stop();
+			esp_mqtt_stop();
             break;
         default:
             break;
@@ -141,7 +122,7 @@ void take_reading(void *pvParameter)
         int msg_size = sprintf(distance_buf, "%0.1f", distance);
 
         ESP_LOGI(TAG, "%s in.\n", distance_buf);
-        mqtt_publish(mqtt_client_handle, CONFIG_MQTT_SALT_LEVEL_TOPIC, distance_buf, msg_size, 0, 1);
+		esp_mqtt_publish(CONFIG_MQTT_SALT_LEVEL_TOPIC, (void*) distance_buf, msg_size, 0, 1);
 
         vRingbufferReturnItem(rx_ring_buffer_handle, (void*) item);
     }
@@ -151,16 +132,13 @@ void take_reading(void *pvParameter)
     vTaskDelete(NULL);
 }
 
-void readingTimerCallback(TimerHandle_t xTimer)
+void reading_timer_callback(TimerHandle_t xTimer)
 {
     xTaskCreate(&take_reading, "Take Reading Task", 2048, NULL, 5, NULL);
 }
 
-void connected_cb(mqtt_client *client, mqtt_event_data_t *event_data)
+void start_reading_timer()
 {
-    mqtt_client_handle = client;
-    ESP_LOGI(TAG, "MQTT connected");
-
     if (!timer_handle)
     {
         timer_handle = xTimerCreate(
@@ -168,7 +146,7 @@ void connected_cb(mqtt_client *client, mqtt_event_data_t *event_data)
                 pdMS_TO_TICKS(CONFIG_SENSOR_READ_INTERVAL * 1000),
                 true,
                 (void *) 0,
-                readingTimerCallback
+                reading_timer_callback
         );
 
         if(timer_handle == NULL)
@@ -182,29 +160,36 @@ void connected_cb(mqtt_client *client, mqtt_event_data_t *event_data)
         ESP_LOGE(TAG, "Failed to start timer");
     }
 
-    mqtt_publish(mqtt_client_handle, CONFIG_MQTT_LWT_TOPIC, "online", 6, 1, 1);
-
     // Take a reading right away
-    readingTimerCallback(NULL);
+    reading_timer_callback(NULL);
 }
 
-void disconnected_cb(mqtt_client *client, mqtt_event_data_t *event_data)
+static void mqtt_status_callback(esp_mqtt_status_t status)
 {
-    mqtt_client_handle = NULL;
-    ESP_LOGI(TAG, "MQTT disconnected");
+    switch (status) {
+        case ESP_MQTT_STATUS_CONNECTED:
+			ESP_LOGI(TAG, "MQTT connected");
+			start_reading_timer();
+            break;
+        case ESP_MQTT_STATUS_DISCONNECTED:
+			ESP_LOGI(TAG, "MQTT disconnected");
 
-    if(xTimerStop(timer_handle, 1) != pdPASS)
-    {
-        ESP_LOGE(TAG, "Failed to stop timer");
+			if(xTimerStop(timer_handle, 1) != pdPASS)
+			{
+				ESP_LOGE(TAG, "Failed to stop timer");
+			}
+
+			esp_wifi_connect();
+            break;
     }
-
-    esp_wifi_connect();
 }
 
 void app_main()
 {
     nvs_flash_init();
     init_wifi();
+
+	esp_mqtt_init(mqtt_status_callback, NULL, 256, 2000);
 
     rmt_tx_init();
     rmt_rx_init();
