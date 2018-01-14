@@ -138,7 +138,7 @@ void take_reading(void *pvParameter)
     if (item) {
         // Got something
         float distance = item->duration0 / 148.0; // to inches
-        int msg_size = sprintf(distance_buf, "%f", distance);
+        int msg_size = sprintf(distance_buf, "%0.1f", distance);
 
         ESP_LOGI(TAG, "%s in.\n", distance_buf);
         mqtt_publish(mqtt_client_handle, CONFIG_MQTT_SALT_LEVEL_TOPIC, distance_buf, msg_size, 0, 1);
