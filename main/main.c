@@ -116,7 +116,12 @@ void take_reading(void *pvParameter)
     rx_size = 0;
     rmt_item32_t* item = (rmt_item32_t*) xRingbufferReceive(rx_ring_buffer_handle, &rx_size, 1000);
 
-    if (item) {
+    if (item == NULL)
+    {
+        ESP_LOGW(TAG, "RMT read timeout");
+    }
+    else if(rx_size)
+    {
         // Got something
         float distance = item->duration0 / 148.0; // to inches
 
@@ -140,6 +145,11 @@ void take_reading(void *pvParameter)
         ESP_LOGI(TAG, "%s\n", msg_buffer);
         esp_mqtt_publish(CONFIG_MQTT_SALT_LEVEL_TOPIC, (void*) msg_buffer, msg_size, 0, 1);
 
+        vRingbufferReturnItem(rx_ring_buffer_handle, (void*) item);
+    }
+    else
+    {
+        ESP_LOGI(TAG, "Received end packet");
         vRingbufferReturnItem(rx_ring_buffer_handle, (void*) item);
     }
 
