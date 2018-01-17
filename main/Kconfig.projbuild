@@ -54,4 +54,14 @@ config SENSOR_READ_INTERVAL
     help
        Sensor read interval in seconds
 
+config SENSOR_FULL_LVL_INCHES
+    int "Sensor Full Level Inches"
+    help
+       The level in inches when the tank is full
+
+config SENSOR_EMPTY_LVL_INCHES
+    int "Sensor Empty Level Inches"
+    help
+       The level in inches when the tank is empty
+
 endmenu

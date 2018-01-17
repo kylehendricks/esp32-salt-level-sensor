@@ -104,7 +104,7 @@ void rmt_rx_init()
 }
 
 size_t rx_size;
-char distance_buf[16];
+char msg_buffer[16];
 
 void take_reading(void *pvParameter)
 {
@@ -119,10 +119,26 @@ void take_reading(void *pvParameter)
     if (item) {
         // Got something
         float distance = item->duration0 / 148.0; // to inches
-        int msg_size = sprintf(distance_buf, "%0.1f", distance);
 
-        ESP_LOGI(TAG, "%s in.\n", distance_buf);
-		esp_mqtt_publish(CONFIG_MQTT_SALT_LEVEL_TOPIC, (void*) distance_buf, msg_size, 0, 1);
+        // Calculate fullness percentage
+        int percent_full = 0;
+        if (distance <= CONFIG_SENSOR_FULL_LVL_INCHES)
+        {
+            percent_full = 100;
+        }
+        else if (distance >= CONFIG_SENSOR_EMPTY_LVL_INCHES)
+        {
+            percent_full = 0;
+        }
+        else
+        {
+            percent_full = 100 - ((distance - CONFIG_SENSOR_FULL_LVL_INCHES) / (float)(CONFIG_SENSOR_EMPTY_LVL_INCHES - CONFIG_SENSOR_FULL_LVL_INCHES) * 100);
+        }
+
+        int msg_size = sprintf(msg_buffer, "{\"distance\":%0.1f,\"percent_full\":%d}", distance, percent_full);
+
+        ESP_LOGI(TAG, "%s\n", msg_buffer);
+        esp_mqtt_publish(CONFIG_MQTT_SALT_LEVEL_TOPIC, (void*) msg_buffer, msg_size, 0, 1);
 
         vRingbufferReturnItem(rx_ring_buffer_handle, (void*) item);
     }
