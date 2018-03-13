@@ -1,3 +1,5 @@
+Note:  The HC-SR04 did not end up giving me consistent results.  I ended up switching to using the time-of-flight vl53l0x sensor.  [Here](https://github.com/kylehendricks/esp32-salt-level-sensor-vl53l0x) is the new project.
+
 # esp32-salt-level-sensor
 An ESP32 based water softener salt level sensor
 
